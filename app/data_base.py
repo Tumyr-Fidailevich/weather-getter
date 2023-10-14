@@ -3,11 +3,11 @@ import sqlite3
 import json
 
 
-def insert_request(request: List[Dict[str, Any]]) -> None:
+def insert_response(request: List[Dict[str, Any]]) -> None:
     pass
 
 
-def get_latest_requests(num_of_requests: int) -> List[Dict[str, Any]]:
+def get_latest_responses(num_of_requests: int) -> List[Dict[str, Any]]:
     pass
 
 
