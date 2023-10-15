@@ -190,3 +190,4 @@ fabric.properties
 *.cfg
 *.yaml
 !requirements.txt
+*.db

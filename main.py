@@ -1,4 +1,5 @@
-from package import *
+from app import *
+
 
 if __name__ == "__main__":
-    print()
+    execute_app()
