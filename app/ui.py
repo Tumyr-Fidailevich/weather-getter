@@ -38,11 +38,11 @@ def execute_app() -> None:
         try:
             message_type, body = get_input("Type your command-> ")
             COMMAND_DISPATCH_DICT[Command(message_type)](body)
-        except UnknownCommand as e:
+        except UnknownCommandError as e:
             print(e)
-        except InvalidBodyRequest as e:
+        except InvalidBodyRequestError as e:
             print(e)
-        except UnknownCityName as e:
+        except UnknownCityNameError as e:
             print(e)
         except (ConnectTimeout, ReadTimeout) as e:
             print("You have problems with your Internet connection")
@@ -70,7 +70,7 @@ def get_input(message_for_user: str) -> (str, str):
         body = ' '.join(user_input[1:])
 
     if message_type not in Command:
-        raise UnknownCommand
+        raise UnknownCommandError
     return message_type, body
 
 
@@ -116,7 +116,7 @@ def list_last_responses(body: str) -> None:
     elif not body:
         responses = get_latest_responses(0, list_all=True)
     else:
-        raise InvalidBodyRequest
+        raise InvalidBodyRequestError
 
     if len(responses) == 0:
         print("Data base is empty")

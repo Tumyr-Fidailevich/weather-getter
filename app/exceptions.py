@@ -9,7 +9,7 @@ class UserInputException(Exception):
         super().__init__(message)
 
 
-class UnknownCityName(UserInputException):
+class UnknownCityNameError(UserInputException):
     """
     Exception that occurs when the city name is entered incorrectly.
     """
@@ -17,7 +17,7 @@ class UnknownCityName(UserInputException):
         super().__init__("Cannot find this city, try another")
 
 
-class UnknownCommand(UserInputException):
+class UnknownCommandError(UserInputException):
     """
     Exception that occurs when an invalid command is entered.
     """
@@ -25,7 +25,7 @@ class UnknownCommand(UserInputException):
         super().__init__("Unsupported command. Type -h for help")
 
 
-class InvalidBodyRequest(UserInputException):
+class InvalidBodyRequestError(UserInputException):
     """
     Exception that occurs when an invalid request body is entered.
     """
