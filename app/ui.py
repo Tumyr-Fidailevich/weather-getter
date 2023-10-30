@@ -1,7 +1,7 @@
-from requests.exceptions import *
 from types import MappingProxyType
 from .api import *
 from .data_base import *
+from exceptions import *
 from enum import Enum, EnumMeta
 from datetime import datetime
 
@@ -10,6 +10,7 @@ class CustomEnumMeta(EnumMeta):
     """
     Metaclass for overriding the in operator.
     """
+
     def __contains__(cls, item):
         return any(item == member.value for member in cls)
 
@@ -33,41 +34,39 @@ def execute_app() -> None:
     :return: None.
     :exception: No except.
     """
-    create_database()
-    while True:
-        try:
-            message_type, body = get_input("Type your command-> ")
-            COMMAND_DISPATCH_DICT[Command(message_type)](body)
-        except UnknownCommandError as e:
-            print(e)
-        except InvalidBodyRequestError as e:
-            print(e)
-        except UnknownCityNameError as e:
-            print(e)
-        except (ConnectTimeout, ReadTimeout) as e:
-            print("You have problems with your Internet connection")
-            print(e)
-        except (ConnectionError, HTTPError, TooManyRedirects, Timeout) as e:
-            print("Server problems")
-            print(e)
-        except KeyboardInterrupt:
-            exit()
+    with sqlite_connection() as connection:
+
+        create_database(connection)
+        while True:
+            try:
+                message_type, body = get_input("Type your command-> ")
+                COMMAND_DISPATCH_DICT[Command(message_type)](body)
+            except UnknownCommandError as e:
+                print(e)
+            except InvalidBodyRequestError as e:
+                print(e)
+            except UnknownCityNameError as e:
+                print(e)
+            except (ConnectTimeout, ReadTimeout) as e:
+                print("You have problems with your Internet connection")
+                print(e)
+            except (ConnectionError, HTTPError, TooManyRedirects, Timeout) as e:
+                print("Server problems")
+                print(e)
+            except KeyboardInterrupt:
+                exit()
 
 
 def get_input(message_for_user: str) -> (str, str):
     """
     Receives user input and preprocesses it.
-    :param message_for_user: Message for the user.
+    @:param message_for_user: Message for the user.
     :return: Returns a tuple of strings, in which 1 string is the request type, the second is the request body.
     :exception: UnknownCommand.
     """
     user_input = input(message_for_user).split(maxsplit=1)
     message_type = user_input[0] if user_input else ""
     body = user_input[1] if len(user_input) > 1 else ""
-
-    if len(user_input) > 2:
-        message_type = user_input[0]
-        body = ' '.join(user_input[1:])
 
     if message_type not in Command:
         raise UnknownCommandError
@@ -90,7 +89,7 @@ def request_response(body: str) -> None:
 def prepare_raw_response(response: dict[str: Any]) -> dict[str: Any]:
     """
     Prepares data for insertion into the database.
-    :param response: Raw response.
+    :param: response: Raw response.
     :return: Prepared data.
     :exception: No except.
     """
@@ -135,6 +134,7 @@ def list_all_responses(body: str) -> None:
     :return: None.
     :exception: InvalidBodyRequest.
     """
+
     responses = get_latest_responses(0, list_all=True)
     if len(responses) == 0:
         print("Data base is empty")
