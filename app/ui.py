@@ -2,20 +2,11 @@ from types import MappingProxyType
 from .api import *
 from .data_base import *
 from exceptions import *
-from enum import Enum, EnumMeta
+from enum import StrEnum
 from datetime import datetime
 
 
-class CustomEnumMeta(EnumMeta):
-    """
-    Metaclass for overriding the in operator.
-    """
-
-    def __contains__(cls, item):
-        return any(item == member.value for member in cls)
-
-
-class Command(Enum, metaclass=CustomEnumMeta):
+class Command(StrEnum):
     """
     Enum class for user input.
     """
