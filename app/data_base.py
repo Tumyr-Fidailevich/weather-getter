@@ -1,6 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
-from .weather_data_type import Weather
+from .weather import Weather
 
 
 @contextmanager
@@ -17,14 +17,13 @@ def insert_response(connection: sqlite3.Connection, response: Weather) -> None:
     :param connection: connection with database.
     :param response: Preprocessed response for the database.
     :return: None.
-
     :exception: No except.
     """
     cursor = connection.cursor()
-
-    cursor.execute(
-        f'INSERT INTO Weather ({response.get_fields()}) VALUES ({Weather.get_sqlite_type(response.get_fields())})',
-        dict(response))
+    fields = ", ".join(field for field in response)
+    placeholders = ", ".join("?" for _ in response)
+    values = [response[field] for field in response]
+    cursor.execute(f'INSERT INTO Weather ({fields}) VALUES ({placeholders})', values)
 
 
 def get_latest_responses(connection: sqlite3.Connection, num_of_responses: int) -> list[Weather]:
@@ -32,15 +31,13 @@ def get_latest_responses(connection: sqlite3.Connection, num_of_responses: int) 
     Returns the latest responses in a prepared form.
     :param connection: connection with database.
     :param num_of_responses: Number of last requests.
-    :param list_all: A key that allows you to display all responses at once.
     :return: Preprocessed response.
     :exception: No except.
     """
     cursor = connection.cursor()
-
+    fields = ", ".join(field for field in Weather.get_fields())
     cursor.execute(
-        "SELECT " + "".join(f"{field.name}, " for field in
-                            Weather.get_fields()) + f"FROM Weather ORDER BY id DESC LIMIT {num_of_responses}")
+        f"SELECT {fields} FROM Weather ORDER BY id DESC LIMIT {num_of_responses}")
     last_responses = cursor.fetchall()
     response_list = list()
 
@@ -58,9 +55,8 @@ def get_all_responses(connection: sqlite3.Connection) -> list[Weather]:
     :exception: No except.
     """
     cursor = connection.cursor()
-    cursor.execute(
-        "SELECT " + "".join(f"{field.name}, " for field in
-                            Weather.get_fields()) + f"FROM Weather ORDER BY id DESC")
+    fields = ", ".join(field for field in Weather.get_fields())
+    cursor.execute(f"SELECT {fields} FROM Weather ORDER BY id DESC")
     last_responses = cursor.fetchall()
     response_list = list()
 
@@ -79,7 +75,8 @@ def create_database(connection: sqlite3.Connection) -> None:
     """
     cursor = connection.cursor()
     fields = "id INTEGER PRIMARY KEY AUTOINCREMENT, " + ", ".join(
-        f"{field.name} {Weather.get_sqlite_type(field.type)}" for field in Weather.get_fields())
+        f"{field_name} {Weather.get_sqlite_type(field_type)}" for field_name, field_type in
+        Weather.get_fields().items())
     cursor.execute(f"CREATE TABLE IF NOT EXISTS Weather ({fields})")
 
 
@@ -91,4 +88,4 @@ def drop_database(connection) -> None:
     :exception: No except.
     """
     cursor = connection.cursor()
-    cursor.execute('DELETE FROM Weather IF EXISTS')
+    cursor.execute('DELETE FROM Weather')

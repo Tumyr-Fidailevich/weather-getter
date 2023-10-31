@@ -1,5 +1,4 @@
-from app import *
-
+import app
 
 if __name__ == "__main__":
-    execute_app()
+    app.execute_app()

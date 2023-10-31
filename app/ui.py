@@ -1,12 +1,26 @@
 from types import MappingProxyType
-from .api import *
-from .data_base import *
-from exceptions import *
-from enum import StrEnum
-from datetime import datetime
+from enum import Enum, EnumMeta
+from collections import namedtuple
+from .api import get_response
+from .data_base import sqlite_connection, insert_response, get_latest_responses, get_all_responses, create_database, \
+    drop_database
+from .exceptions import *
+from .weather import Weather
+from .config import DB_NAME
 
 
-class Command(StrEnum):
+UserInput = namedtuple("UserInputRequest", ["command", "body"])
+
+
+class CustomEnumMeta(EnumMeta):
+    """
+    Metaclass for overriding the in operator.
+    """
+    def __contains__(cls, item):
+        return any(item == member.value for member in cls)
+
+
+class Command(Enum, metaclass=CustomEnumMeta):
     """
     Enum class for user input.
     """
@@ -18,6 +32,9 @@ class Command(StrEnum):
     HELP = "-h"
 
 
+# TODO Разобраться как мне теперь вызывать функции в зависимости от типа сообщения
+# TODO Разобраться с ошибками, нужно отлавливать другие, эти не работают
+@exception_handler(UnknownCommandError, InvalidBodyRequestError, UnknownCityNameError)
 def execute_app() -> None:
     """
     Starts the main application loop. The function handles exceptions.
@@ -25,30 +42,25 @@ def execute_app() -> None:
     :return: None.
     :exception: No except.
     """
-    with sqlite_connection() as connection:
-
+    with sqlite_connection(DB_NAME) as connection:
         create_database(connection)
-        while True:
-            try:
-                message_type, body = get_input("Type your command-> ")
-                COMMAND_DISPATCH_DICT[Command(message_type)](body)
-            except UnknownCommandError as e:
-                print(e)
-            except InvalidBodyRequestError as e:
-                print(e)
-            except UnknownCityNameError as e:
-                print(e)
-            except (ConnectTimeout, ReadTimeout) as e:
-                print("You have problems with your Internet connection")
-                print(e)
-            except (ConnectionError, HTTPError, TooManyRedirects, Timeout) as e:
-                print("Server problems")
-                print(e)
-            except KeyboardInterrupt:
-                exit()
+
+    while True:
+        try:
+            command, body = get_input("Type your command-> ")
+            if command == Command.REQUEST.value or command == Command.LIST.value:
+                COMMAND_DISPATCH_DICT[Command(command)](body)
+            else:
+                COMMAND_DISPATCH_DICT[Command(command)]()
+        except ConnectionError as e:
+            print("You have problems with your Internet connection")
+        except (Timeout, HTTPError) as e:
+            print("Problems with connection to api")
+        except KeyboardInterrupt:
+            exit()
 
 
-def get_input(message_for_user: str) -> (str, str):
+def get_input(message_for_user: str) -> UserInput:
     """
     Receives user input and preprocesses it.
     @:param message_for_user: Message for the user.
@@ -56,111 +68,86 @@ def get_input(message_for_user: str) -> (str, str):
     :exception: UnknownCommand.
     """
     user_input = input(message_for_user).split(maxsplit=1)
-    message_type = user_input[0] if user_input else ""
+    command = user_input[0] if user_input else ""
     body = user_input[1] if len(user_input) > 1 else ""
-
-    if message_type not in Command:
+    if command not in Command:
         raise UnknownCommandError
-    return message_type, body
+    return UserInput(command, body)
 
 
-def request_response(body: str) -> None:
+def request_response(city_name: str) -> None:
     """
     Sends a request to the api, receives a response from it.
     If no errors occur, displays the response to the user and inserts it into the database.
-    :param body:
+    :param city_name: name of city,
     :return: None.
     :exception: UnknownCityName, requests.exceptions.
     """
-    response = prepare_raw_response(get_response(body))
-    print_response(response)
-    insert_response(response)
+    weather = Weather.get_weather_by_api_response(get_response(city_name))
+    print(weather)
+    with sqlite_connection(DB_NAME) as connection:
+        insert_response(connection, weather)
 
 
-def prepare_raw_response(response: dict[str: Any]) -> dict[str: Any]:
-    """
-    Prepares data for insertion into the database.
-    :param: response: Raw response.
-    :return: Prepared data.
-    :exception: No except.
-    """
-    prepared_response = dict()
-    prepared_response["time"] = datetime.fromtimestamp(response["dt"])
-    prepared_response["city_name"] = response["name"]
-    prepared_response["weather_conditions"] = response["weather"][0]["description"]
-    prepared_response["current_temp"] = round(response["main"]["temp"] - TO_CELSIUS)
-    prepared_response["feels_like_temp"] = round(response["main"]["feels_like"] - TO_CELSIUS)
-    prepared_response["wind_speed"] = response["wind"]["speed"]
-    return prepared_response
-
-
-def list_last_responses(body: str) -> None:
+def list_last_responses(num_of_responses: str) -> None:
     """
     Prints the last n responses from the database if body can be converted to int.
-    :param body: Body of the request received from the user.
+    :param num_of_responses: number of responses user wants to display.
     :return: None.
     :exception: InvalidBodyRequest.
     """
-    if body.isdigit() and int(body) >= 0:
-        responses = get_latest_responses(int(body))
-    elif not body:
-        responses = get_latest_responses(0, list_all=True)
-    else:
-        raise InvalidBodyRequestError
+    with sqlite_connection(DB_NAME) as connection:
+        if num_of_responses.isdigit() and not num_of_responses.startswith("0"):
+            responses = get_latest_responses(connection, int(num_of_responses))
+        else:
+            raise InvalidBodyRequestError
 
-    if len(responses) == 0:
+    print_responses(responses)
+
+
+def list_all_responses() -> None:
+    """
+    Prints the last responses from the database.
+    :return: None.
+    :exception: No except.
+    """
+    with sqlite_connection(DB_NAME) as connection:
+        responses = get_all_responses(connection)
+
+    print_responses(responses)
+
+
+def print_responses(responses: list[Weather]) -> None:
+    """
+    Displays the processed response.
+    :param responses:
+    :return: None.
+    :exception: No except.
+    """
+    if not responses:
         print("Data base is empty")
         return
 
     for i in range(len(responses) - 1):
-        print_response(responses[i])
+        print(responses[i])
         input("Press Enter for next -> ")
-    print_response(responses[len(responses) - 1])
+    print(responses[len(responses) - 1])
 
 
-def list_all_responses(body: str) -> None:
-    """
-    Prints the last responses from the database.
-    :param body: Body of the request received from the user.
-    :return: None.
-    :exception: InvalidBodyRequest.
-    """
-
-    responses = get_latest_responses(0, list_all=True)
-    if len(responses) == 0:
-        print("Data base is empty")
-        return
-
-    for i in range(len(responses)):
-        print_response(responses[i])
-        print("----------------------")
-
-
-def print_response(response: dict[str: Any]) -> None:
-    """
-    Displays the processed response.
-    :param response: Processed request.
-    :return: None.
-    :exception: No except.
-    """
-    for key, value in response.items():
-        print(ID_TO_NAMES[key].format(value))
-
-
-def clear_responses(body: str) -> None:
+def clear_responses() -> None:
     """
     Calls a function that clears the database.
-    :param body: Body of the request received from the user.
     :return: None.
     :exception: No except.
     """
-    drop_database()
+    with sqlite_connection(DB_NAME) as connection:
+        drop_database(connection)
+    print("Responses cleared successfully")
 
 
-def show_help(body: str) -> None:
+def show_help() -> None:
     """
     Displays help on working with the application.
-    :param body: Body of the request received from the user.
     :return: None.
     :exception: No except.
     """
@@ -171,10 +158,9 @@ def show_help(body: str) -> None:
           "-q: Exits the program")
 
 
-def quit_app(exit_status_code: str) -> None:
+def quit_app() -> None:
     """
     Exits the application.
-    :param exit_status_code: A useless parameter for now.
     :return: None.
     :exception: No except.
     """

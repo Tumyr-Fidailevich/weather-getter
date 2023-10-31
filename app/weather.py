@@ -1,17 +1,20 @@
-from dataclasses import dataclass, asdict, fields
-from datetime import datetime
-from requests import Response
+from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from .config import SECONDS_IN_HOUR
 
 
-# TODO добавить описание класса
 @dataclass
 class Weather:
+    """
+    Dataclass for weather
+    """
     time: datetime
     city_name: str
     weather_conditions: str
-    current_temp: float
-    feels_like_temp: float
-    wind_speed: float
+    current_temp: int
+    feels_like_temp: int
+    wind_speed: int
 
     def __iter__(self):
         return iter(asdict(self))
@@ -19,34 +22,48 @@ class Weather:
     def __getitem__(self, item):
         return getattr(self, item)
 
-    # TODO добавить метод для отрисовки класса print(Weather)
     def __str__(self):
-        pass
+        return f"Current time: {self.time}\n" \
+               f"City name: {self.city_name}\n" \
+               f"Weather conditions: {self.weather_conditions}\n" \
+               f"Current temperature: {self.current_temp} degrees Celsius\n" \
+               f"Feels like: {self.feels_like_temp} degrees Celsius\n" \
+               f"Wind speed: {self.wind_speed} m/s"
+
+    @classmethod
+    def get_fields(cls) -> dict[str: Any]:
+        return cls.__annotations__
 
     @staticmethod
-    def get_fields():
-        return iter(fields(Weather))
-
-    @staticmethod
-    def get_sqlite_type(python_type):
+    def get_sqlite_type(python_type: int | str | datetime) -> str:
+        """
+        Converts python data type to sql type.
+        :param python_type: python type.
+        :return: sql data type.
+        """
         if python_type is int:
             return "INTEGER"
-        elif python_type is float:
-            return "REAL"
         elif python_type is str:
             return "TEXT"
         elif python_type is datetime:
             return "TIME"
 
-    # TODO определить этот метод
     @classmethod
-    def get_weather_by_api_response(cls, api_response: Response):
-        response_dict = dict()
-        response_dict.time = 10
-        response_dict.city_name = "123"
-        response_dict.weather_conditions = "123"
-        response_dict.current_temp = 1
-        response_dict.feels_like_temp = 2
-        response_dict.wind_speed = 3
+    def get_weather_by_api_response(cls, api_response: dict[str: Any]):
+        """
 
-        return cls(*response_dict)
+        :param api_response: api response from get_response function.
+        :return: Instance of the Weather class.
+        """
+        response_list = list()
+        current_timezone = timezone(
+            timedelta(hours=api_response["timezone"] / SECONDS_IN_HOUR,
+                      minutes=api_response["timezone"] % SECONDS_IN_HOUR))
+        response_list.append(datetime.fromtimestamp(api_response["dt"], tz=current_timezone))
+        response_list.append(api_response["name"])
+        response_list.append(api_response["weather"][0]["description"])
+        response_list.append(round(api_response["main"]["temp"]))
+        response_list.append(round(api_response["main"]["feels_like"]))
+        response_list.append(round(api_response["wind"]["speed"]))
+
+        return cls(*response_list)

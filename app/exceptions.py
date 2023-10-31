@@ -1,3 +1,18 @@
+from requests.exceptions import *
+
+
+def exception_handler(*exceptions):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            while True:
+                try:
+                    func(*args, **kwargs)
+                except exceptions as e:
+                    print(e)
+        return wrapper
+    return decorator
+
+
 class UserInputException(Exception):
     """
     Basic user input exception.
@@ -35,14 +50,3 @@ class InvalidBodyRequestError(UserInputException):
 
     def __init__(self):
         super().__init__("Invalid request body")
-
-
-def exception_handler(exceptions: tuple = ()):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            try:
-                func(*args, **kwargs)
-            except exceptions as e:
-                print(e)
-        return wrapper
-    return decorator
