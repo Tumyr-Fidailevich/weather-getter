@@ -1,9 +1,14 @@
-from geocoder import ip, osm
+from geocoder import ip
 from requests import get
 from typing import Any
-from .exceptions import *
-from .config import *
 from http import HTTPStatus
+from exceptions import UnknownCityNameError
+from config import API_CALL, API_KEY
+
+
+def get_city_name_by_current_position() -> str:
+    location = ip("me")
+    return location.city
 
 
 def get_response(city_name: str) -> dict[str: Any]:
@@ -12,17 +17,13 @@ def get_response(city_name: str) -> dict[str: Any]:
     If the string is empty, the city will be obtained based on the user's current location.
     :param city_name: name of the requested city.
     :return: json representation of the raw requested data.
-    :exception: exceptions from requests.exceptions or UnknownCityName.
+    :exception: exceptions from requests.exceptions or UnknownCityNameError.
     """
-    if city_name:
-        response = osm(city_name)
-    else:
-        response = ip("me")
-        city_name = response.current_result.city
-    if response.status_code != HTTPStatus.OK:
-        raise UnknownCityName
-    latitude, longitude = response.latlng
-    request = get(API_CALL.format(latitude, longitude, API_KEY), timeout=5)
+    # TODO Пофиксить падение программы при некорректном теле запроса
+    if not city_name:
+        city_name = get_city_name_by_current_position()
+    request = get(API_CALL.format(f"q={city_name}", API_KEY), timeout=5)
+    if request.status_code != HTTPStatus.OK:
+        raise UnknownCityNameError
     request_data = request.json()
-    request_data["name"] = city_name
     return request_data
