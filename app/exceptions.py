@@ -1,14 +1,11 @@
-from requests.exceptions import *
-
-
 def exception_handler(*exceptions):
     def decorator(func):
         def wrapper(*args, **kwargs):
-            while True:
-                try:
-                    func(*args, **kwargs)
-                except exceptions as e:
-                    print(e)
+            try:
+                return func(*args, **kwargs)
+            except exceptions as e:
+                print(e)
+                wrapper(*args, **kwargs)
         return wrapper
     return decorator
 

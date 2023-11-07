@@ -1,6 +1,6 @@
-from types import MappingProxyType
-from enum import Enum, EnumMeta
+from enum import EnumMeta, StrEnum
 from collections import namedtuple
+from requests.exceptions import ConnectionError, Timeout, HTTPError
 from .api import get_response
 from .data_base import sqlite_connection, insert_response, get_latest_responses, get_all_responses, create_database, \
     drop_database
@@ -20,7 +20,7 @@ class CustomEnumMeta(EnumMeta):
         return any(item == member.value for member in cls)
 
 
-class Command(Enum, metaclass=CustomEnumMeta):
+class Command(StrEnum, metaclass=CustomEnumMeta):
     """
     Enum class for user input.
     """
@@ -32,9 +32,7 @@ class Command(Enum, metaclass=CustomEnumMeta):
     HELP = "-h"
 
 
-# TODO Разобраться как мне теперь вызывать функции в зависимости от типа сообщения
-# TODO Разобраться с ошибками, нужно отлавливать другие, эти не работают
-@exception_handler(UnknownCommandError, InvalidBodyRequestError, UnknownCityNameError)
+@exception_handler(UnknownCommandError, UnknownCityNameError, InvalidBodyRequestError)
 def execute_app() -> None:
     """
     Starts the main application loop. The function handles exceptions.
@@ -48,10 +46,19 @@ def execute_app() -> None:
     while True:
         try:
             command, body = get_input("Type your command-> ")
-            if command == Command.REQUEST.value or command == Command.LIST.value:
-                COMMAND_DISPATCH_DICT[Command(command)](body)
-            else:
-                COMMAND_DISPATCH_DICT[Command(command)]()
+            match command:
+                case Command.REQUEST:
+                    request_response(body)
+                case Command.LIST:
+                    list_last_responses(body)
+                case Command.ALL:
+                    list_all_responses()
+                case Command.CLEAR:
+                    clear_responses()
+                case Command.QUIT:
+                    quit_app()
+                case Command.HELP:
+                    show_help()
         except ConnectionError as e:
             print("You have problems with your Internet connection")
         except (Timeout, HTTPError) as e:
@@ -81,7 +88,7 @@ def request_response(city_name: str) -> None:
     If no errors occur, displays the response to the user and inserts it into the database.
     :param city_name: name of city,
     :return: None.
-    :exception: UnknownCityName, requests.exceptions.
+    :exception: UnknownCityNameError, requests.exceptions.
     """
     weather = Weather.get_weather_by_api_response(get_response(city_name))
     print(weather)
@@ -94,7 +101,7 @@ def list_last_responses(num_of_responses: str) -> None:
     Prints the last n responses from the database if body can be converted to int.
     :param num_of_responses: number of responses user wants to display.
     :return: None.
-    :exception: InvalidBodyRequest.
+    :exception: InvalidBodyRequestError.
     """
     with sqlite_connection(DB_NAME) as connection:
         if num_of_responses.isdigit() and not num_of_responses.startswith("0"):
@@ -120,7 +127,7 @@ def list_all_responses() -> None:
 def print_responses(responses: list[Weather]) -> None:
     """
     Displays the processed response.
-    :param responses:
+    :param responses: list of Weather dataclasses.
     :return: None.
     :exception: No except.
     """
@@ -164,14 +171,4 @@ def quit_app() -> None:
     :return: None.
     :exception: No except.
     """
-    raise SystemExit()
-
-
-COMMAND_DISPATCH_DICT = MappingProxyType({
-    Command.REQUEST: request_response,
-    Command.LIST: list_last_responses,
-    Command.ALL: list_all_responses,
-    Command.CLEAR: clear_responses,
-    Command.QUIT: quit_app,
-    Command.HELP: show_help
-})
+    raise KeyboardInterrupt

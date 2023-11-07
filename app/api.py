@@ -1,18 +1,21 @@
-from geocoder import ip
-from requests import get, exceptions
-from typing import Any
 from http import HTTPStatus
+from typing import Any
+
+from geocoder import ip
+from requests import get
+
 from .config import API_CALL, API_KEY
-from datetime import datetime, timedelta, timezone
+from .exceptions import UnknownCityNameError
 
 
-# TODO добавить докстринг
 def get_city_name_by_current_position() -> str:
     """
-
-    :return:
+    Get city name by current position.
+    :return: city name.
     """
     location = ip("me")
+    if not location:
+        raise UnknownCityNameError
     return location.city
 
 
@@ -24,19 +27,10 @@ def get_response(city_name: str | None) -> dict[str: Any]:
     :return: json representation of the raw requested data.
     :exception: exceptions from requests.exceptions or UnknownCityNameError.
     """
-    # TODO Пофиксить падение программы при некорректном теле запроса
     if not city_name:
         city_name = get_city_name_by_current_position()
     request = get(API_CALL.format(f"q={city_name}", API_KEY), timeout=5)
     request_data = request.json()
+    if request.status_code == HTTPStatus.NOT_FOUND:
+        raise UnknownCityNameError
     return request_data
-
-#
-# if __name__ == "__main__":
-#     print(dir(exceptions))
-    # response = get_response("")
-    # current_timezone = timezone(timedelta(hours=10800 / 3600, minutes=10800 % 3600))
-    # current_time = datetime.fromtimestamp(1698773222, tz=current_timezone)
-    # print(response)
-    # print(current_time)
-    # print(current_timezone)

@@ -7,7 +7,7 @@ from .config import SECONDS_IN_HOUR
 @dataclass
 class Weather:
     """
-    Dataclass for weather
+    Dataclass for processing weather data
     """
     time: datetime
     city_name: str
@@ -51,15 +51,15 @@ class Weather:
     @classmethod
     def get_weather_by_api_response(cls, api_response: dict[str: Any]):
         """
-
-        :param api_response: api response from get_response function.
+        Converts response from API to weather dataclass.
+        :param api_response: api response.
         :return: Instance of the Weather class.
         """
         response_list = list()
         current_timezone = timezone(
             timedelta(hours=api_response["timezone"] / SECONDS_IN_HOUR,
                       minutes=api_response["timezone"] % SECONDS_IN_HOUR))
-        response_list.append(datetime.fromtimestamp(api_response["dt"], tz=current_timezone))
+        response_list.append(datetime.fromtimestamp(api_response["dt"] - api_response["timezone"], tz=current_timezone))
         response_list.append(api_response["name"])
         response_list.append(api_response["weather"][0]["description"])
         response_list.append(round(api_response["main"]["temp"]))
