@@ -4,7 +4,7 @@ from requests.exceptions import ConnectionError, Timeout, HTTPError
 from .api import get_response
 from .data_base import sqlite_connection, insert_response, get_latest_responses, get_all_responses, create_database, \
     drop_database
-from .exceptions import *
+from .exceptions import InvalidBodyRequestError, UnknownCityNameError, UnknownCommandError, exception_handler
 from .weather import Weather
 from .config import DB_NAME
 
